@@ -1,4 +1,4 @@
-import { setFont } from '../procedures/helpers.js';
+import { setFont } from "../procedures/helpers.js";
 
 export class Target {
   constructor(pair, lang, x) {
@@ -26,8 +26,12 @@ export class Target {
       const targetLeft = this.x - this.w / 2;
       const targetRight = this.x + this.w / 2;
 
-      if (targetRight >= wallLeft && targetLeft <= wallRight &&
-          targetBottom >= wallTop && targetTop <= wallBottom) {
+      if (
+        targetRight >= wallLeft &&
+        targetLeft <= wallRight &&
+        targetBottom >= wallTop &&
+        targetTop <= wallBottom
+      ) {
         this.vy = 0;
         this.y = wallTop - this.h / 2;
       }
@@ -46,7 +50,6 @@ export class Target {
 
   draw(ctx) {
     setFont(ctx);
-    this.w = ctx.measureText(this.text).width + 24;
 
     ctx.fillStyle = "#401f1fff";
     ctx.strokeStyle = "rgba(255, 102, 117, 1)";

@@ -1,37 +1,13 @@
 import { Target } from "./classes/Target.js";
 import { resizeCanvas } from "./procedures/helpers.js";
+import words from "./constants/words.js";
+import { setFont } from "./procedures/helpers.js";
 import {
   drawGun,
-  drawAimLine,
   drawLives,
   drawTopInfo,
   drawGameOver,
 } from "./procedures/draw.js";
-
-const gunSpeed = 3;
-
-const words = [
-  { en: "breeze", ru: "бриз" },
-  { en: "glimpse", ru: "взгляд мельком" },
-  { en: "wander", ru: "бродить" },
-  { en: "fascinate", ru: "очаровывать" },
-  { en: "sparkle", ru: "сверкать" },
-  { en: "whisper", ru: "шептать" },
-  { en: "dazzle", ru: "ослеплять" },
-  { en: "reckon", ru: "полагать" },
-  { en: "flicker", ru: "мерцать" },
-  { en: "glow", ru: "сиять" },
-  { en: "venture", ru: "рисковать" },
-  { en: "soar", ru: "взмывать" },
-  { en: "echo", ru: "отражаться" },
-  { en: "murmur", ru: "бормотать" },
-  { en: "thrill", ru: "возбуждать" },
-  { en: "wanderlust", ru: "тяга к путешествиям" },
-  { en: "haze", ru: "мгла" },
-  { en: "glimmer", ru: "проблеск" },
-  { en: "linger", ru: "задерживаться" },
-  { en: "flick", ru: "щёлкать" },
-];
 
 let canvas = document.getElementById("game");
 let ctx;
@@ -54,7 +30,6 @@ let current = null;
 let lastBottomWord = null;
 let targets = [];
 let projectiles = [];
-let dir = 1;
 let repeatedCount = 0;
 let lives = 3;
 let isGameOver = false;
@@ -66,7 +41,7 @@ let nextSpawnY = 0;
 const livesRef = { value: lives };
 let gunWordIndex = 0;
 let gunQueue = [];
-let moveDir = 0;
+let isStarted = false;
 
 setInterval(() => {
   if (livesRef.value < 3 && !isGameOver) livesRef.value++;
@@ -86,21 +61,28 @@ function spawnWave() {
 
 function spawnWord(pair) {
   const lang = Math.random() < 0.5 ? "en" : "ru";
-  const x = Math.random() * (canvasLogicalWidth - 100) + 50;
 
-  // determine y
-  const last = targets[targets.length - 1];
-  if (!last || last.y > 0) {
-    nextSpawnY = -40; // start above screen
+  // создаём временный объект, чтобы узнать ширину слова
+  const temp = new Target(pair, lang, 0, ctx);
+  setFont(ctx); // убедимся, что шрифт правильный
+  temp.w = ctx.measureText(temp.text).width + 24;
+
+  // выбираем X так, чтобы слово полностью помещалось на экране
+  const x = Math.random() * (canvasLogicalWidth - temp.w) + temp.w / 2;
+
+  // определяем Y
+  if (!targets.length || targets[targets.length - 1].y > 0) {
+    nextSpawnY = -40;
   }
 
   const t = new Target(pair, lang, x, ctx);
+  t.w = temp.w; // фиксируем ширину
   t.y = nextSpawnY;
-  nextSpawnY -= t.h + 10; // vertical spacing
+  nextSpawnY -= t.h + 10;
 
   targets.push(t);
 
-  // add to gun queue at random position
+  // добавляем в очередь пушки
   const insertIndex = Math.floor(Math.random() * (gunQueue.length + 1));
   gunQueue.splice(insertIndex, 0, t);
 
@@ -108,12 +90,18 @@ function spawnWord(pair) {
 }
 
 // ================== INPUT ==================
-document.body.addEventListener("pointerdown", (e) => {
+canvas.addEventListener("pointerdown", (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  // 1. GAME OVER — рестарт
+  if (!isStarted) {
+    isStarted = true;
+    spawnWave();
+    return;
+  }
+
+  // 1. Если игра окончена — рестарт
   if (isGameOver) {
     livesRef.value = 3;
     repeatedCount = 0;
@@ -127,55 +115,55 @@ document.body.addEventListener("pointerdown", (e) => {
     return;
   }
 
-  // 2. нижняя зона — смена слова
-  if (y >= canvasLogicalHeight - 80) {
-    pickGunWord();
-    return;
-  }
-
-  const third = canvasLogicalWidth / 3;
-
-  // 3. управление
-  if (x < third) {
-    moveDir = -1;
-  } else if (x > third * 2) {
-    moveDir = 1;
-  } else {
-    shoot();
-  }
+  // 2. Любой тап по экрану — выстрел
+  shootAt(x, y);
 });
 
-function shoot() {
+function shootAt(targetX, targetY) {
   if (!current) return;
 
+  const startX = canvasLogicalWidth / 2; // центр экрана, там где пушка
+  const startY = canvasLogicalHeight - 40;
+
+  // вектор к тапу
+  const dx = targetX - startX;
+  const dy = targetY - startY;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  const speed = 10; // скорость пули
+  const vx = (dx / distance) * speed;
+  const vy = (dy / distance) * speed;
+
   projectiles.push({
-    x: aimX,
-    y: canvasLogicalHeight - 70,
-    vy: -10,
+    x: startX,
+    y: startY,
+    vx,
+    vy,
     color: "#5bc88f",
     word: current.text,
     pair: lastBottomWord.pair,
   });
 
-  pickGunWord();
+  pickGunWord(); // сразу меняем слово после выстрела
 }
-
-document.body.addEventListener("pointerup", () => {
-  moveDir = 0;
-});
-
-document.body.addEventListener("pointercancel", () => {
-  moveDir = 0;
-});
 
 // ================== PROJECTILES ==================
 function updateProjectiles() {
   for (let p = projectiles.length - 1; p >= 0; p--) {
     const proj = projectiles[p];
+
+    // двигаем пульку по вектору
+    proj.x += proj.vx;
     proj.y += proj.vy;
 
+    // проверка на столкновение с целями
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i];
+
+      if (t.y + t.h / 2 > canvasLogicalHeight - 80) {
+        continue;
+      }
+
       const hit =
         proj.x + 6 >= t.x - t.w / 2 &&
         proj.x - 6 <= t.x + t.w / 2 &&
@@ -184,7 +172,7 @@ function updateProjectiles() {
 
       if (hit) {
         if (t.pair === proj.pair && t.text !== proj.word) {
-          // removeFromBottomQueue(t); // remove exact pair from bottom queue
+          // попадание в правильное слово
           targets.splice(i, 1);
 
           const indexInGun = gunQueue.indexOf(t);
@@ -196,6 +184,7 @@ function updateProjectiles() {
           repeatedCount++;
           if (Math.random() < 0.2) spawnWallButton();
         } else {
+          // наказание за неправильное попадание
           applyPunishment(t);
         }
 
@@ -205,7 +194,15 @@ function updateProjectiles() {
       }
     }
 
-    if (proj.y < 0) projectiles.splice(p, 1);
+    // удаляем пульку, если она улетела за экран
+    if (
+      proj.x < 0 ||
+      proj.x > canvasLogicalWidth ||
+      proj.y < 0 ||
+      proj.y > canvasLogicalHeight
+    ) {
+      projectiles.splice(p, 1);
+    }
   }
 }
 
@@ -236,32 +233,29 @@ function applyPunishment(t) {
 
 // ================== LOOP ==================
 function loop() {
-  if (livesRef.value <= 0) isGameOver = true;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  ctx.save();
-  ctx.globalAlpha = 0.08;
+  // === START SCREEN ===
+  if (!isStarted) {
+    ctx.fillStyle = "#0f1220";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "#333";
-  ctx.fillRect(0, 0, canvasLogicalWidth / 3, canvasLogicalHeight - 80);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
-  ctx.fillStyle = "#000";
-  ctx.fillRect(
-    canvasLogicalWidth / 3,
-    0,
-    canvasLogicalWidth / 3,
-    canvasLogicalHeight - 80
-  );
+    setFont(ctx, 24);
+    ctx.fillText("Foxapp", canvasLogicalWidth / 2, canvasLogicalHeight / 2 - 40);
+    
+    setFont(ctx);
+    ctx.fillText("Click to start", canvasLogicalWidth / 2, canvasLogicalHeight / 2 + 20);
 
-  ctx.fillStyle = "#333";
-  ctx.fillRect(
-    (canvasLogicalWidth * 2) / 3,
-    0,
-    canvasLogicalWidth / 3,
-    canvasLogicalHeight - 80
-  );
+    requestAnimationFrame(loop);
+    return;
+  }
 
-  ctx.restore();
+  // === GAME OVER CHECK ===
+  if (livesRef.value <= 0) isGameOver = true;
 
   if (isGameOver) {
     drawGameOver(ctx, canvas, canvasLogicalWidth, canvasLogicalHeight);
@@ -269,29 +263,30 @@ function loop() {
     return;
   }
 
-  ctx.fillStyle = "#14182b8a";
+  // === GAME LOOP ===
+  ctx.fillStyle = "#14182bff";
   ctx.fillRect(0, canvasLogicalHeight - 80, canvasLogicalWidth, 80);
 
-  drawAimLine(ctx, aimX, canvasLogicalHeight);
+  // draw info
   drawLives(ctx, livesRef);
   drawTopInfo(ctx, repeatedCount, waveNumber);
 
+  // update and draw targets
   for (let i = targets.length - 1; i >= 0; i--) {
     const t = targets[i];
-
     t.update({ wall, canvasLogicalHeight, livesRef });
     t.draw(ctx);
 
     if (t.dead) {
       const qi = gunQueue.indexOf(t);
       if (qi !== -1) gunQueue.splice(qi, 1);
-
       targets.splice(i, 1);
+      if (!targets.length) spawnWave();
     }
   }
 
+  // update and draw projectiles
   updateProjectiles();
-
   for (const p of projectiles) {
     ctx.fillStyle = p.color;
     ctx.beginPath();
@@ -299,17 +294,12 @@ function loop() {
     ctx.fill();
   }
 
-  // aimX += dir * gunSpeed;
-  // if (aimX < 0 || aimX > canvasLogicalWidth) dir *= -1;
-  aimX += moveDir * gunSpeed;
-  aimX = Math.max(0, Math.min(canvasLogicalWidth, aimX));
-
-  // if (wallButton) drawButton(ctx, wallButton, "#284a884d", "#4c8bff54");
-  // if (wall) drawButton(ctx, wall, "#8b8b8b3b", "#c5c5c5");
-
+  // draw gun
   drawGun(ctx, current, canvasLogicalWidth, canvasLogicalHeight);
+
   requestAnimationFrame(loop);
 }
+
 
 function pickGunWord() {
   if (!gunQueue.length) {
@@ -330,5 +320,4 @@ function pickGunWord() {
   lastBottomWord = current;
 }
 
-spawnWave();
 loop();

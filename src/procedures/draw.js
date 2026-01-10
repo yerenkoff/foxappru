@@ -40,52 +40,6 @@ export function drawGun(ctx, current, canvasLogicalWidth, canvasLogicalHeight) {
   ctx.fillText(current.text, x, y);
 }
 
-export function drawAimLine(ctx, aimX, canvasLogicalHeight) {
-  const emitterY = canvasLogicalHeight - 80;
-
-  // aim line
-  ctx.save();
-  ctx.strokeStyle = "rgba(200,200,200,0.4)";
-  ctx.lineWidth = 1;
-  ctx.setLineDash([6, 6]);
-  ctx.beginPath();
-  ctx.moveTo(aimX, emitterY);
-  ctx.lineTo(aimX, 0);
-  ctx.stroke();
-  ctx.restore();
-
-  // glowing emitter
-  ctx.save();
-
-//   const glowRadius = 12;
-
-//   // outer glow
-//   const gradient = ctx.createRadialGradient(
-//     aimX,
-//     emitterY,
-//     2,
-//     aimX,
-//     emitterY,
-//     glowRadius
-//   );
-//   gradient.addColorStop(0, "rgba(120,180,255,0.9)");
-//   gradient.addColorStop(1, "rgba(120,180,255,0)");
-
-//   ctx.fillStyle = gradient;
-//   ctx.beginPath();
-//   ctx.arc(aimX, emitterY, glowRadius, 0, Math.PI * 2);
-//   ctx.fill();
-
-  // core
-  ctx.fillStyle = "#cfe3ff";
-  ctx.beginPath();
-  ctx.arc(aimX, emitterY, 4, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-
 export function drawLives(ctx, livesRef) {
   setFont(ctx);
   ctx.fillStyle = "#ff4c4c";
