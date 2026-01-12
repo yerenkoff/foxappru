@@ -40,21 +40,15 @@ export function drawGun(ctx, current, canvasLogicalWidth, canvasLogicalHeight) {
   ctx.fillText(current.text, x, y);
 }
 
-export function drawLives(ctx, livesRef) {
-  setFont(ctx);
-  ctx.fillStyle = "#ff4c4c";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  for (let i = 0; i < livesRef.value; i++) ctx.fillText("<3", 16 + i * 20, 55);
-}
-
-export function drawTopInfo(ctx, repeatedCount, waveNumber) {
+export function drawTopInfo(ctx, repeatedCount, waveNumber, livesRef) {
   setFont(ctx, 14);
   ctx.fillStyle = "#cfe3ff";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.fillText(`Words repeated: ${repeatedCount}`, 16, 12);
   ctx.fillText(`Wave: ${waveNumber}`, 16, 32);
+  ctx.fillStyle = "#ff4c4c";
+  ctx.fillText("<3".repeat(livesRef.value), 16, 52);
 }
 
 export function drawGameOver(ctx, canvas, canvasLogicalWidth, canvasLogicalHeight) {

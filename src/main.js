@@ -1,25 +1,100 @@
 import { Target } from "./classes/Target.js";
 import { resizeCanvas } from "./procedures/helpers.js";
-import words from "./constants/words.js";
 import { setFont } from "./procedures/helpers.js";
-import {
-  drawGun,
-  drawLives,
-  drawTopInfo,
-  drawGameOver,
-} from "./procedures/draw.js";
+import { drawGun, drawTopInfo, drawGameOver } from "./procedures/draw.js";
 
 let canvas = document.getElementById("game");
 let ctx;
 let canvasLogicalWidth, canvasLogicalHeight;
-let aimX;
+
+const username = "yerenkoff"; // your GitHub username
+
+async function fetchDictionaryUrls() {
+  try {
+    // hardcode repo in URL
+    const apiUrl = `https://api.github.com/repos/${username}/foxapp-data/contents`;
+    const response = await fetch(apiUrl);
+    if (!response.ok) throw new Error("Failed to fetch repo contents");
+
+    const files = await response.json();
+
+    // filter only .txt files and map to { name, url }
+    const urls = files
+      .filter(f => f.name.endsWith(".txt"))
+      .map(f => ({
+        name: f.name.replace(".txt", ""), // e.g., "english-french"
+        url: f.download_url                // raw GitHub URL
+      }));
+
+    return urls; // array of { name, url }
+  } catch (err) {
+    console.error("Error fetching dictionary URLs:", err);
+    return [];
+  }
+}
+
+async function buildStartButtons() {
+  startButtons = [];
+  const buttonWidth = 360;
+  const buttonHeight = 44;
+  const gap = 16;
+
+  const dictionaryUrls = await fetchDictionaryUrls();
+
+  const startY =
+    canvasLogicalHeight / 2 -
+    ((dictionaryUrls.length - 1) * (buttonHeight + gap)) / 2;
+
+  dictionaryUrls.forEach((dict, i) => {
+    startButtons.push({
+      name: dict.name,
+      url: dict.url,
+      x: canvasLogicalWidth / 2 - buttonWidth / 2,
+      y: startY + i * (buttonHeight + gap),
+      w: buttonWidth,
+      h: buttonHeight,
+      pressed: false,
+    });
+  });
+}
+
+let startButtons = [];
+
+async function fetchDictionary(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch dictionary");
+    const text = await response.text();
+
+    const lines = text.split("\n").filter((line) => line.trim());
+    const words = lines
+      .map((line) => {
+        const parts = line.split(":").map((s) => s.trim());
+        if (parts.length < 2) return null;
+        return {
+          word: parts[0], // first part = word
+          translation: parts[1], // second part = translation
+        };
+      })
+      .filter(Boolean);
+
+    return words;
+  } catch (err) {
+    console.error("Error fetching dictionary:", err);
+    return [];
+  }
+}
+
+const url =
+  "https://raw.githubusercontent.com/yerenkoff/foxapp-data/refs/heads/main/english-french.txt";
+
 
 function onResize() {
   const result = resizeCanvas(canvas);
   ctx = result.ctx;
   canvasLogicalWidth = result.canvasLogicalWidth;
   canvasLogicalHeight = result.canvasLogicalHeight;
-  aimX = canvasLogicalWidth / 2;
+  buildStartButtons();
 }
 
 window.addEventListener("resize", onResize);
@@ -42,6 +117,8 @@ const livesRef = { value: lives };
 let gunWordIndex = 0;
 let gunQueue = [];
 let isStarted = false;
+let selectedDictionaryName = null;
+let activeWords = [];
 
 setInterval(() => {
   if (livesRef.value < 3 && !isGameOver) livesRef.value++;
@@ -49,18 +126,26 @@ setInterval(() => {
 
 // ================== SPAWN ==================
 function spawnWave() {
+  if (!activeWords.length) return;
   nextSpawnY = -40;
   targets.length = 0;
+
+  // Difficulty factor: speeds up words gradually
+  const speedFactor = 1 + waveNumber * 0.05; // 10% faster each wave
+
   for (let i = 0; i < 5; i++) {
-    spawnWord(words[Math.floor(Math.random() * words.length)]);
+    const t = spawnWord(activeWords[Math.floor(Math.random() * activeWords.length)]);
+    t.vy *= speedFactor; // scale speed
   }
+
   gunQueue = [...targets].sort(() => Math.random() - 0.5);
   pickGunWord();
   waveNumber++;
 }
 
 function spawnWord(pair) {
-  const lang = Math.random() < 0.5 ? "en" : "ru";
+  const langs = Object.keys(pair);
+  const lang = langs[Math.floor(Math.random() * langs.length)];
 
   // создаём временный объект, чтобы узнать ширину слова
   const temp = new Target(pair, lang, 0, ctx);
@@ -90,19 +175,43 @@ function spawnWord(pair) {
 }
 
 // ================== INPUT ==================
-canvas.addEventListener("pointerdown", (e) => {
+// === start screen handler ===
+canvas.addEventListener("pointerdown", async (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
+  // === START SCREEN ===
   if (!isStarted) {
-    isStarted = true;
-    spawnWave();
+    for (const btn of startButtons) {
+      if (
+        x >= btn.x &&
+        x <= btn.x + btn.w &&
+        y >= btn.y &&
+        y <= btn.y + btn.h
+      ) {
+        // fetch dictionary dynamically from the GitHub URL stored in the button
+        activeWords = await fetchDictionary(btn.url); // ✅ must await
+        selectedDictionaryName = btn.name;
+        isStarted = true;
+        spawnWave();
+        return;
+      }
+    }
     return;
   }
 
-  // 1. Если игра окончена — рестарт
+  // === GAME OVER ===
   if (isGameOver) {
+    resetGame();
+    return;
+  }
+
+  // === GAME INPUT (shooting) ===
+  shootAt(x, y);
+});
+
+function resetGame() {
     livesRef.value = 3;
     repeatedCount = 0;
     waveNumber = 0;
@@ -112,12 +221,7 @@ canvas.addEventListener("pointerdown", (e) => {
     gunQueue.length = 0;
     isGameOver = false;
     spawnWave();
-    return;
-  }
-
-  // 2. Любой тап по экрану — выстрел
-  shootAt(x, y);
-});
+}
 
 function shootAt(targetX, targetY) {
   if (!current) return;
@@ -223,7 +327,7 @@ function applyPunishment(t) {
   else if (punishment === 1) {
     const count = Math.floor(Math.random() * 3) + 1;
     for (let k = 0; k < count; k++) {
-      const pair = words[Math.floor(Math.random() * words.length)];
+      const pair = activeWords[Math.floor(Math.random() * activeWords.length)];
       spawnWord(pair); // spawnWord now returns the Target
     }
   } else {
@@ -244,11 +348,42 @@ function loop() {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    setFont(ctx, 24);
-    ctx.fillText("Foxapp", canvasLogicalWidth / 2, canvasLogicalHeight / 2 - 40);
-    
-    setFont(ctx);
-    ctx.fillText("Click to start", canvasLogicalWidth / 2, canvasLogicalHeight / 2 + 20);
+    // title
+    setFont(ctx, 28);
+    ctx.fillText(
+      "Foxapp",
+      canvasLogicalWidth / 2,
+      canvasLogicalHeight / 2 - 120
+    );
+
+    // subtitle
+    setFont(ctx, 16);
+    ctx.fillText(
+      "Choose dictionary to start the game",
+      canvasLogicalWidth / 2,
+      canvasLogicalHeight / 2 - 70
+    );
+
+    // dictionary buttons
+    setFont(ctx, 18);
+
+    startButtons.forEach((btn) => {
+      // background color depends on pressed state
+      ctx.fillStyle = btn.pressed ? "#4caf87" : "#1e2240"; // pressed = lighter
+      ctx.strokeStyle = "#5bc88f";
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.roundRect(btn.x, btn.y, btn.w, btn.h, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      // text
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(btn.name, btn.x + btn.w / 2, btn.y + btn.h / 2);
+    });
 
     requestAnimationFrame(loop);
     return;
@@ -263,13 +398,8 @@ function loop() {
     return;
   }
 
-  // === GAME LOOP ===
-  ctx.fillStyle = "#14182bff";
-  ctx.fillRect(0, canvasLogicalHeight - 80, canvasLogicalWidth, 80);
-
   // draw info
-  drawLives(ctx, livesRef);
-  drawTopInfo(ctx, repeatedCount, waveNumber);
+  drawTopInfo(ctx, repeatedCount, waveNumber, livesRef);
 
   // update and draw targets
   for (let i = targets.length - 1; i >= 0; i--) {
@@ -284,6 +414,10 @@ function loop() {
       if (!targets.length) spawnWave();
     }
   }
+
+  // === GAME LOOP ===
+  ctx.fillStyle = "#14182bff";
+  ctx.fillRect(0, canvasLogicalHeight - 80, canvasLogicalWidth, 80);
 
   // update and draw projectiles
   updateProjectiles();
@@ -300,7 +434,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-
 function pickGunWord() {
   if (!gunQueue.length) {
     current = null;
@@ -315,7 +448,8 @@ function pickGunWord() {
 
   gunWordIndex = (gunWordIndex + 1) % gunQueue.length;
 
-  const oppositeLang = t.lang === "en" ? "ru" : "en";
+  const langs = Object.keys(t.pair);
+  const oppositeLang = langs.find((l) => l !== t.lang);
   current = { pair: t.pair, lang: oppositeLang, text: t.pair[oppositeLang] };
   lastBottomWord = current;
 }
