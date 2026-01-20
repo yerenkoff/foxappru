@@ -1,16 +1,17 @@
 import { setFont } from "../procedures/helpers.js";
 
 export class Target {
-  constructor(pair, lang, x) {
+  constructor(pair, lang, x, playEffect) {
     this.pair = pair;
     this.lang = lang;
     this.text = pair[lang];
     this.x = x;
-    this.vy = 0.2;
+    this.vy = 0.5;
     this.y = -Math.random() * 300 - 40;
     this.w = 0; // will calculate in draw()
     this.h = 16 + 18;
     this.dead = false;
+    this.playEffect = playEffect;
   }
 
   update({ wall, canvasLogicalHeight, livesRef }) {
@@ -41,11 +42,14 @@ export class Target {
 
     this.y += this.vy;
 
-    // fell below canvas
-    if (this.y - this.h / 2 > canvasLogicalHeight) {
-      livesRef.value--;
-      this.dead = true;
-    }
+    // // fell below canvas
+    // if (this.y - this.h / 2 > canvasLogicalHeight) {
+    //   livesRef.value--;
+    //   this.dead = true;
+    //   if (livesRef.value === 0) {
+    //     this.playEffect("lose");
+    //   }
+    // }
   }
 
   draw(ctx) {

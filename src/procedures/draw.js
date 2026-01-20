@@ -40,15 +40,13 @@ export function drawGun(ctx, current, canvasLogicalWidth, canvasLogicalHeight) {
   ctx.fillText(current.text, x, y);
 }
 
-export function drawTopInfo(ctx, repeatedCount, waveNumber, livesRef) {
+export function drawTopInfo(ctx, repeatedCount, waveNumber) {
   setFont(ctx, 14);
   ctx.fillStyle = "#cfe3ff";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.fillText(`Words repeated: ${repeatedCount}`, 16, 12);
   ctx.fillText(`Wave: ${waveNumber}`, 16, 32);
-  ctx.fillStyle = "#ff4c4c";
-  ctx.fillText("<3".repeat(livesRef.value), 16, 52);
 }
 
 export function drawGameOver(ctx, canvas, canvasLogicalWidth, canvasLogicalHeight) {

@@ -4,27 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Foxapp</title>
-    <style>
-      @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap");
-      html {
-        height: 100%;
-      }
-      body {
-        min-height: 100%;
-        margin: 0;
-        background: #0b0e1a;
-        overflow: hidden;
-        font-family: "IBM Plex Sans", sans-serif;
-        color: #fff;
-      }
-      canvas {
-        display: block;
-        margin: 0 auto;
-        background: #0f1220;
-      }
-    </style>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#5bc88f" />
   </head>
   <body>
+    <div class="startScreen">
+      <h1>Foxapp</h1>
+      <form action="">
+        <input id="input" type="text" placeholder="GitHub username" />
+        <button id="search">Search</button>
+        <button id="reset">Reset</button>
+      </form>
+      <p>Choose dictionary to start the game:</p>
+      <div id="dictionaries"></div>
+      <div id="options">
+        <div class="option">
+          <input type="checkbox" id="audioCheckbox" checked/>
+          <label for="audioCheckbox">Sounds</label>
+        </div>
+      </div>
+    </div>
     <canvas id="game"></canvas>
     <script src="src/main.js" type="module"></script>
   </body>
